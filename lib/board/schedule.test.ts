@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 
-import { moveTask } from "./schedule";
+import { isHeld, moveTask } from "./schedule";
 import type { Task } from "./types";
 
 function makeTask(overrides: Partial<Task> = {}): Task {
@@ -96,5 +96,31 @@ describe("moveTask", () => {
       { start: "2026-08-20", end: "2026-08-27", outcome: "held" },
       { start: "2026-08-27", end: null },
     ]);
+  });
+});
+
+describe("isHeld", () => {
+  test("세그먼트가 없는 신규 등록 작업은 보류가 아니다", () => {
+    const task = makeTask({ status: "plan", segments: [] });
+
+    expect(isHeld(task)).toBe(false);
+  });
+
+  test("마지막 구간이 held로 닫힌 작업은 보류다", () => {
+    const task = makeTask({
+      status: "plan",
+      segments: [{ start: "2026-08-20", end: "2026-08-27", outcome: "held" }],
+    });
+
+    expect(isHeld(task)).toBe(true);
+  });
+
+  test("마지막 구간이 done으로 닫힌 작업(재개 후 재보류가 아닌 경우)은 보류가 아니다", () => {
+    const task = makeTask({
+      status: "done",
+      segments: [{ start: "2026-08-20", end: "2026-08-27", outcome: "done" }],
+    });
+
+    expect(isHeld(task)).toBe(false);
   });
 });

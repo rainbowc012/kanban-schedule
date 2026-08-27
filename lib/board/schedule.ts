@@ -10,6 +10,12 @@ export function rightMoveTarget(status: TaskStatus): TaskStatus {
   return status === "plan" ? "progress" : "done";
 }
 
+// 계획 열의 카드가 신규 등록인지 보류(실행에서 되돌아옴)인지 가른다
+export function isHeld(task: Task): boolean {
+  const last = task.segments[task.segments.length - 1];
+  return last?.outcome === "held";
+}
+
 export function moveTask(task: Task, targetStatus: TaskStatus, today: string): Task {
   const wasInProgress = task.status === "progress";
   const entersProgress = targetStatus === "progress";

@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { CalendarMonth } from "@/components/board/calendar-month";
 import { CompletedColumn } from "@/components/board/completed-column";
 import { KanbanColumn } from "@/components/board/kanban-column";
+import { PlanColumn } from "@/components/board/plan-column";
 import { TaskPanel } from "@/components/board/task-panel";
 import { WeeklyReport } from "@/components/board/weekly-report";
 import { mondayOf } from "@/lib/board/report";
@@ -104,14 +105,7 @@ export function Board() {
       </div>
 
       <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3 md:col-start-1 md:row-start-2">
-        <KanbanColumn
-          title="계획"
-          dotClassName="inline-block size-1.5 rounded-full border border-border bg-background"
-          tasks={planTasks}
-          selectedId={selectedId}
-          onSelect={handleSelect}
-          onMove={handleMove}
-        />
+        <PlanColumn tasks={planTasks} selectedId={selectedId} onSelect={handleSelect} onMove={handleMove} />
         <KanbanColumn
           title="실행"
           dotClassName="inline-block size-1.5 rounded-full bg-info"

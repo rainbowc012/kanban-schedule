@@ -1,5 +1,6 @@
 import { addDays, toUtcDate } from "./date";
 import { formatMonthDay } from "./format";
+import { isHeld } from "./schedule";
 import type { Severity, Task } from "./types";
 
 // 월~일 기준, 주어진 날짜가 속한 주의 월요일을 돌려준다
@@ -48,9 +49,7 @@ export interface WeeklyReport {
 export function selectWeeklyReport(tasks: Task[], reportStart: string | null): WeeklyReport {
   const progress = tasks.filter((t) => t.status === "progress");
   const done = tasks.filter((t) => t.status === "done" && isReportEligible(t, reportStart));
-  const held = tasks.filter(
-    (t) => t.status === "plan" && lastSegment(t)?.outcome === "held" && isReportEligible(t, reportStart)
-  );
+  const held = tasks.filter((t) => t.status === "plan" && isHeld(t) && isReportEligible(t, reportStart));
   return { progress: sortForReport(progress), done: sortForReport(done), held: sortForReport(held) };
 }
 
