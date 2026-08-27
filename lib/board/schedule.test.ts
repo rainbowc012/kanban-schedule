@@ -68,4 +68,33 @@ describe("moveTask", () => {
       { start: "2026-08-27", end: null },
     ]);
   });
+
+  test("같은 날 안에서 실행⇄계획을 여러 번 오가도 구간은 하나로 유지된다", () => {
+    let task = makeTask({ status: "plan", segments: [] });
+
+    task = moveTask(task, "progress", "2026-08-27");
+    task = moveTask(task, "plan", "2026-08-27");
+    task = moveTask(task, "progress", "2026-08-27");
+    task = moveTask(task, "plan", "2026-08-27");
+    task = moveTask(task, "progress", "2026-08-27");
+
+    expect(task.status).toBe("progress");
+    expect(task.segments).toEqual([{ start: "2026-08-27", end: null }]);
+  });
+
+  test("여러 날에 걸친 구간을 오늘 닫았다가 같은 날 다시 열면 별개 구간 두 개로 남는다", () => {
+    const task = makeTask({
+      status: "progress",
+      segments: [{ start: "2026-08-20", end: null }],
+    });
+
+    const held = moveTask(task, "plan", "2026-08-27");
+    const resumed = moveTask(held, "progress", "2026-08-27");
+
+    expect(resumed.status).toBe("progress");
+    expect(resumed.segments).toEqual([
+      { start: "2026-08-20", end: "2026-08-27", outcome: "held" },
+      { start: "2026-08-27", end: null },
+    ]);
+  });
 });
