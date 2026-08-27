@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, test } from "vitest";
 
-import { loadTasks, saveTasks } from "./storage";
+import { loadReportStart, loadTasks, saveReportStart, saveTasks } from "./storage";
 import type { Task } from "./types";
 
 beforeEach(() => {
@@ -28,5 +28,14 @@ describe("board storage", () => {
 
   test("저장된 것이 없으면 빈 배열을 돌려준다", () => {
     expect(loadTasks()).toEqual([]);
+  });
+
+  test("보고 시작일을 저장하고 그대로 불러온다", () => {
+    saveReportStart("2026-08-24");
+    expect(loadReportStart()).toBe("2026-08-24");
+  });
+
+  test("보고 시작일이 저장된 적 없으면 null을 돌려준다", () => {
+    expect(loadReportStart()).toBeNull();
   });
 });

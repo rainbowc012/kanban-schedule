@@ -3,10 +3,13 @@
 import { useEffect, useState } from "react";
 
 import { CalendarMonth } from "@/components/board/calendar-month";
+import { CompletedColumn } from "@/components/board/completed-column";
 import { KanbanColumn } from "@/components/board/kanban-column";
 import { TaskPanel } from "@/components/board/task-panel";
+import { WeeklyReport } from "@/components/board/weekly-report";
+import { mondayOf } from "@/lib/board/report";
 import { moveTask } from "@/lib/board/schedule";
-import { loadTasks, saveTasks } from "@/lib/board/storage";
+import { loadReportStart, loadTasks, saveReportStart, saveTasks } from "@/lib/board/storage";
 import type { Task, TaskStatus } from "@/lib/board/types";
 
 function todayIso(): string {
@@ -23,6 +26,8 @@ export function Board() {
   const [loaded, setLoaded] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [registering, setRegistering] = useState(false);
+  const [reportStart, setReportStart] = useState<string | null>(null);
+  const [showAllDone, setShowAllDone] = useState(false);
 
   useEffect(() => {
     // localStorage는 서버에 없는 값이라 마운트 이후에만 읽을 수 있다. 처음
@@ -30,6 +35,7 @@ export function Board() {
     // 이 최초 동기화는 의도적으로 effect 안에서 한다.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setTasks(loadTasks());
+    setReportStart(loadReportStart());
     setLoaded(true);
   }, []);
 
@@ -56,6 +62,17 @@ export function Board() {
     setRegistering(false);
   }
 
+  function handleReport() {
+    const next = mondayOf(today);
+    setReportStart(next);
+    setShowAllDone(false);
+    saveReportStart(next);
+  }
+
+  function handleToggleShowAllDone() {
+    setShowAllDone((current) => !current);
+  }
+
   function handleDelete(id: string) {
     setTasks((current) => current.filter((task) => task.id !== id));
     setSelectedId((current) => (current === id ? null : current));
@@ -79,7 +96,6 @@ export function Board() {
   const selectedTask = tasks.find((task) => task.id === selectedId) ?? null;
   const planTasks = tasks.filter((task) => task.status === "plan");
   const progressTasks = tasks.filter((task) => task.status === "progress");
-  const doneTasks = tasks.filter((task) => task.status === "done");
 
   return (
     <div className="mx-auto grid max-w-5xl grid-cols-1 gap-3.5 p-4 md:grid-cols-[2fr_1fr]">
@@ -104,10 +120,11 @@ export function Board() {
           onSelect={handleSelect}
           onMove={handleMove}
         />
-        <KanbanColumn
-          title="완료"
-          dotClassName="inline-block size-1.5 rounded-full bg-primary"
-          tasks={doneTasks}
+        <CompletedColumn
+          tasks={tasks}
+          reportStart={reportStart}
+          showAll={showAllDone}
+          onToggleShowAll={handleToggleShowAllDone}
           selectedId={selectedId}
           onSelect={handleSelect}
           onMove={handleMove}
@@ -125,11 +142,14 @@ export function Board() {
         />
       </div>
 
-      <div className="rounded-xl border border-dashed border-border p-3.5 md:col-start-2 md:row-span-3 md:row-start-1">
-        <p className="text-sm font-semibold">주간보고</p>
-        <div className="mt-2 rounded-lg border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
-          이번 버전에는 포함되지 않았습니다.
-        </div>
+      <div className="md:col-start-2 md:row-span-3 md:row-start-1">
+        <WeeklyReport
+          tasks={tasks}
+          reportStart={reportStart}
+          selectedId={selectedId}
+          onSelectTask={handleSelect}
+          onReport={handleReport}
+        />
       </div>
     </div>
   );

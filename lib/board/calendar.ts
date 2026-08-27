@@ -1,15 +1,7 @@
+import { toIsoDate, toUtcDate } from "./date";
 import type { Task } from "./types";
 
 const DAY_MS = 86_400_000;
-
-function toUtcDate(isoDate: string): Date {
-  const [year, month, day] = isoDate.split("-").map(Number);
-  return new Date(Date.UTC(year, month - 1, day));
-}
-
-function toIsoDate(date: Date): string {
-  return date.toISOString().slice(0, 10);
-}
 
 export function getMonthGridWeeks(today: string): string[][] {
   const current = toUtcDate(today);

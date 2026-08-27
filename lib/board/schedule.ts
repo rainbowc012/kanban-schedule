@@ -1,5 +1,15 @@
 import type { Task, TaskStatus } from "./types";
 
+// 선택된 카드의 ‹ › 버튼이 어느 상태로 이동시키는지: 계획 카드는 ›만(착수),
+// 완료 카드는 ‹만(재개), 실행 카드는 양쪽(‹ 보류, › 완료) 갖는다.
+export function leftMoveTarget(status: TaskStatus): TaskStatus {
+  return status === "progress" ? "plan" : "progress";
+}
+
+export function rightMoveTarget(status: TaskStatus): TaskStatus {
+  return status === "plan" ? "progress" : "done";
+}
+
 export function moveTask(task: Task, targetStatus: TaskStatus, today: string): Task {
   const wasInProgress = task.status === "progress";
   const entersProgress = targetStatus === "progress";

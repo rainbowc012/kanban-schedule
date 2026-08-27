@@ -1,6 +1,7 @@
 "use client";
 
 import { TaskCard } from "@/components/board/task-card";
+import { leftMoveTarget, rightMoveTarget } from "@/lib/board/schedule";
 import type { Task, TaskStatus } from "@/lib/board/types";
 
 interface KanbanColumnProps {
@@ -10,14 +11,6 @@ interface KanbanColumnProps {
   selectedId: string | null;
   onSelect: (id: string) => void;
   onMove: (id: string, target: TaskStatus) => void;
-}
-
-function leftTarget(status: TaskStatus): TaskStatus {
-  return status === "progress" ? "plan" : "progress";
-}
-
-function rightTarget(status: TaskStatus): TaskStatus {
-  return status === "plan" ? "progress" : "done";
 }
 
 export function KanbanColumn({
@@ -50,8 +43,8 @@ export function KanbanColumn({
               task={task}
               selected={task.id === selectedId}
               onSelect={() => onSelect(task.id)}
-              onMoveLeft={() => onMove(task.id, leftTarget(task.status))}
-              onMoveRight={() => onMove(task.id, rightTarget(task.status))}
+              onMoveLeft={() => onMove(task.id, leftMoveTarget(task.status))}
+              onMoveRight={() => onMove(task.id, rightMoveTarget(task.status))}
             />
           ))
         )}
