@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 
-import { isHeld, moveTask } from "./schedule";
+import { isHeld, moveTask, updateTaskContent } from "./schedule";
 import type { Task } from "./types";
 
 function makeTask(overrides: Partial<Task> = {}): Task {
@@ -122,5 +122,33 @@ describe("isHeld", () => {
     });
 
     expect(isHeld(task)).toBe(false);
+  });
+});
+
+describe("updateTaskContent", () => {
+  test("제목·내용·이슈/기능·심각도를 새 값으로 바꾸고 상태와 일정 구간은 그대로 둔다", () => {
+    const task = makeTask({
+      title: "이전 제목",
+      content: "이전 내용",
+      type: "기능",
+      severity: "Minor",
+      status: "progress",
+      segments: [{ start: "2026-08-20", end: null }],
+    });
+
+    const updated = updateTaskContent(task, {
+      title: "새 제목",
+      content: "새 내용",
+      type: "이슈",
+      severity: "Critical",
+    });
+
+    expect(updated).toEqual({
+      ...task,
+      title: "새 제목",
+      content: "새 내용",
+      type: "이슈",
+      severity: "Critical",
+    });
   });
 });

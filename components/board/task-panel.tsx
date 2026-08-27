@@ -9,21 +9,16 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { formatMonthDay } from "@/lib/board/format";
 import { severityBadgeVariant } from "@/lib/board/severity";
+import type { TaskContentInput } from "@/lib/board/schedule";
 import type { ScheduleSegment, Severity, Task, TaskType } from "@/lib/board/types";
-
-interface NewTaskInput {
-  title: string;
-  content: string;
-  type: TaskType;
-  severity: Severity;
-}
 
 interface TaskPanelProps {
   selectedTask: Task | null;
   registering: boolean;
   onStartNew: () => void;
   onCancelNew: () => void;
-  onSubmitNew: (input: NewTaskInput) => void;
+  onSubmitNew: (input: TaskContentInput) => void;
+  onUpdate: (id: string, input: TaskContentInput) => void;
   onDelete: (id: string) => void;
 }
 
@@ -33,6 +28,7 @@ export function TaskPanel({
   onStartNew,
   onCancelNew,
   onSubmitNew,
+  onUpdate,
   onDelete,
 }: TaskPanelProps) {
   return (
@@ -45,9 +41,9 @@ export function TaskPanel({
       </div>
       <div className="mt-2">
         {registering ? (
-          <NewTaskForm onCancel={onCancelNew} onSubmit={onSubmitNew} />
+          <TaskContentForm submitLabel="등록" onCancel={onCancelNew} onSubmit={onSubmitNew} />
         ) : selectedTask ? (
-          <TaskDetail task={selectedTask} onDelete={onDelete} />
+          <TaskDetail key={selectedTask.id} task={selectedTask} onUpdate={onUpdate} onDelete={onDelete} />
         ) : (
           <p className="text-sm text-muted-foreground">카드를 선택하면 상세 내용이 여기에 표시됩니다.</p>
         )}
@@ -56,10 +52,34 @@ export function TaskPanel({
   );
 }
 
-function TaskDetail({ task, onDelete }: { task: Task; onDelete: (id: string) => void }) {
+function TaskDetail({
+  task,
+  onUpdate,
+  onDelete,
+}: {
+  task: Task;
+  onUpdate: (id: string, input: TaskContentInput) => void;
+  onDelete: (id: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+
   function handleDeleteClick() {
     const confirmed = window.confirm(`"${task.title}" 작업을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`);
     if (confirmed) onDelete(task.id);
+  }
+
+  if (editing) {
+    return (
+      <TaskContentForm
+        initialValue={task}
+        submitLabel="저장"
+        onCancel={() => setEditing(false)}
+        onSubmit={(input) => {
+          onUpdate(task.id, input);
+          setEditing(false);
+        }}
+      />
+    );
   }
 
   return (
@@ -74,15 +94,20 @@ function TaskDetail({ task, onDelete }: { task: Task; onDelete: (id: string) => 
           <Badge variant="outline">{task.type}</Badge>
           <Badge variant={severityBadgeVariant(task.severity)}>{task.severity}</Badge>
         </div>
-        <Button
-          type="button"
-          variant="destructive"
-          size="sm"
-          className="w-[84px] justify-center"
-          onClick={handleDeleteClick}
-        >
-          Delete
-        </Button>
+        <div className="flex shrink-0 gap-1.5">
+          <Button type="button" variant="outline" size="sm" className="w-[72px] justify-center" onClick={() => setEditing(true)}>
+            Edit
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            size="sm"
+            className="w-[72px] justify-center"
+            onClick={handleDeleteClick}
+          >
+            Delete
+          </Button>
+        </div>
       </div>
       <div className="mt-2 max-h-40 overflow-y-auto pr-0.5 text-sm leading-relaxed whitespace-pre-wrap wrap-anywhere">
         {task.content}
@@ -119,17 +144,23 @@ function SegmentRow({ segment }: { segment: ScheduleSegment }) {
   );
 }
 
-function NewTaskForm({
+// 등록(New)과 수정(Edit)이 같은 필드 구성(제목·이슈/기능·심각도·상세 내용)과
+// 같은 유효성 규칙(제목 필수)을 쓰므로 하나의 폼으로 공유한다.
+function TaskContentForm({
+  initialValue,
+  submitLabel,
   onCancel,
   onSubmit,
 }: {
+  initialValue?: TaskContentInput;
+  submitLabel: string;
   onCancel: () => void;
-  onSubmit: (input: NewTaskInput) => void;
+  onSubmit: (input: TaskContentInput) => void;
 }) {
-  const [title, setTitle] = useState("");
-  const [type, setType] = useState<TaskType>("기능");
-  const [severity, setSeverity] = useState<Severity>("Minor");
-  const [content, setContent] = useState("");
+  const [title, setTitle] = useState(initialValue?.title ?? "");
+  const [type, setType] = useState<TaskType>(initialValue?.type ?? "기능");
+  const [severity, setSeverity] = useState<Severity>(initialValue?.severity ?? "Minor");
+  const [content, setContent] = useState(initialValue?.content ?? "");
 
   return (
     <div className="flex flex-col gap-3">
@@ -188,7 +219,7 @@ function NewTaskForm({
           disabled={!title.trim()}
           onClick={() => onSubmit({ title: title.trim(), content: content.trim(), type, severity })}
         >
-          등록
+          {submitLabel}
         </Button>
         <Button type="button" variant="outline" onClick={onCancel}>
           취소

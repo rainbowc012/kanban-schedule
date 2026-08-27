@@ -1,4 +1,11 @@
-import type { Task, TaskStatus } from "./types";
+import type { Severity, Task, TaskStatus, TaskType } from "./types";
+
+export interface TaskContentInput {
+  title: string;
+  content: string;
+  type: TaskType;
+  severity: Severity;
+}
 
 // 선택된 카드의 ‹ › 버튼이 어느 상태로 이동시키는지: 계획 카드는 ›만(착수),
 // 완료 카드는 ‹만(재개), 실행 카드는 양쪽(‹ 보류, › 완료) 갖는다.
@@ -14,6 +21,12 @@ export function rightMoveTarget(status: TaskStatus): TaskStatus {
 export function isHeld(task: Task): boolean {
   const last = task.segments[task.segments.length - 1];
   return last?.outcome === "held";
+}
+
+// 제목·내용·이슈/기능·심각도만 바꾼다. 상태와 일정 구간은 이동(moveTask)의
+// 영역이라 여기서는 손대지 않는다.
+export function updateTaskContent(task: Task, input: TaskContentInput): Task {
+  return { ...task, ...input };
 }
 
 export function moveTask(task: Task, targetStatus: TaskStatus, today: string): Task {

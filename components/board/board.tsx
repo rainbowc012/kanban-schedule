@@ -9,7 +9,7 @@ import { PlanColumn } from "@/components/board/plan-column";
 import { TaskPanel } from "@/components/board/task-panel";
 import { WeeklyReport } from "@/components/board/weekly-report";
 import { mondayOf } from "@/lib/board/report";
-import { moveTask } from "@/lib/board/schedule";
+import { moveTask, updateTaskContent, type TaskContentInput } from "@/lib/board/schedule";
 import { loadReportStart, loadTasks, saveReportStart, saveTasks } from "@/lib/board/storage";
 import type { Task, TaskStatus } from "@/lib/board/types";
 
@@ -79,7 +79,15 @@ export function Board() {
     setSelectedId((current) => (current === id ? null : current));
   }
 
-  function handleSubmitNew(input: { title: string; content: string; type: Task["type"]; severity: Task["severity"] }) {
+  function handleUpdate(id: string, input: TaskContentInput) {
+    setTasks((current) =>
+      current.map((task) =>
+        task.id === id ? updateTaskContent(task, { ...input, content: input.content || "(상세 내용 없음)" }) : task
+      )
+    );
+  }
+
+  function handleSubmitNew(input: TaskContentInput) {
     const task: Task = {
       id: createId(),
       title: input.title,
@@ -132,6 +140,7 @@ export function Board() {
           onStartNew={handleStartNew}
           onCancelNew={handleCancelNew}
           onSubmitNew={handleSubmitNew}
+          onUpdate={handleUpdate}
           onDelete={handleDelete}
         />
       </div>
