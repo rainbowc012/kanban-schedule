@@ -1,0 +1,769 @@
+<!--
+  prototype shell: the review chrome every prototype starts from.
+
+  Keep this comment in the prototype you grow from here: it is the contract,
+  and later turns work from that file rather than from this one.
+
+  Contract (extend product screens; keep the review shell):
+  - Product:  .sh-stage contains only end-user product UI. Keep review notes,
+               rationale, instructions, and approval controls in conversation.
+  - Screens:  <section data-screen="slug" data-title="Label"> inside .sh-stage.
+               The selector, arrow keys, and #hash routing build themselves.
+               Use one option per product destination or distinct surface,
+               named by its product role. Keep baselines, variants, comparison
+               labels, steps, indexes, and progress out of names and states.
+               Links may use href="#slug".
+  - States:   "Default" is automatic. A screen declares only representative
+               presets in data-states="Empty,Error". Use natural, screen-specific
+               names. Reserve presets for important multi-step results, forced
+               data or errors, or materially different structure; keep one-click
+               and transient states as interactions. Use data-when="Empty" on
+               preset-only elements. Call prototypeShell.setState("Name") on
+               entry and setState("Default") on exit, including when repeated
+               actions cross a preset condition.
+  - Viewport: "vp (m)" cycles full / 390 / 768. The 390 preset is a
+               fixed-height, internally scrolling phone frame. Start a
+               mobile-first prototype by adding class="sh-vp-390" to <body>
+               (or a bootstrap classList.add before the chrome script runs).
+  - Pinning:  keep in-frame bars (tab bars, CTAs) inside the phone with
+               position: sticky; position: fixed pins to the browser window.
+  - Tokens:   replace the project-tokens block with project tokens copied
+               verbatim. Map differing names to --background, --foreground, and
+               --font afterwards; replace network fonts with a system stack and
+               note that substitution. Without a design system, keep this
+               palette as the finished style.
+  - Placeholders: .wf-pic stands in for pictures the prototype has no real
+               files for. Use real text everywhere text belongs.
+
+  - Chrome:   Keep exactly the screen selector, selected-screen state selector,
+               and viewport cycle. Chrome that needs explaining has failed.
+
+  Self-contained by design: no build, no framework, no network.
+
+  Project token note: copied verbatim from app/globals.css (shadcn preset
+  b5cR1QUZk / base-nova). --font-sans in the project resolves to Inter via
+  next/font; substituted here with a system sans stack per the contract above.
+-->
+<meta charset="utf-8">
+<title>Prototype — 일정 관리 보드</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  /* ── project tokens: copied verbatim from app/globals.css ── */
+  :root {
+    --card: oklch(1 0 0);
+    --card-foreground: oklch(0.145 0 0);
+    --popover: oklch(1 0 0);
+    --popover-foreground: oklch(0.145 0 0);
+    --primary: oklch(0.508 0.118 165.612);
+    --primary-foreground: oklch(0.979 0.021 166.113);
+    --secondary: oklch(0.967 0.001 286.375);
+    --secondary-foreground: oklch(0.21 0.006 285.885);
+    --muted: oklch(0.97 0 0);
+    --muted-foreground: oklch(0.556 0 0);
+    --accent: oklch(0.97 0 0);
+    --accent-foreground: oklch(0.205 0 0);
+    --destructive: oklch(0.577 0.245 27.325);
+    --border: oklch(0.922 0 0);
+    --input: oklch(0.922 0 0);
+    --ring: oklch(0.708 0 0);
+    --radius: 0.625rem;
+    --background: oklch(1 0 0);
+    --foreground: oklch(0.145 0 0);
+    /* prototype-only mapping */
+    --font: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; /* substituted for Inter (next/font) */
+    /* prototype-only addition: base-nova preset has no dedicated "in progress" hue —
+       진행 중/완료 both read as green. Adding a conventional info-blue for 진행 중. */
+    --info: oklch(0.623 0.214 259.815);
+    --info-foreground: oklch(0.97 0.02 260);
+    /* prototype-only addition: Major severity needs a middle step between
+       Critical(red) and Minor(gray) — this preset has no amber, and reusing
+       accent/muted made Major and Minor render as the same near-white badge. */
+    --warning: oklch(0.6 0.16 55);
+    /* prototype-only addition: primary button reused --primary(green), the same
+       hue as "완료" status — colliding with a status color made the button read
+       as if it meant something. Violet is unused by any status in this UI. */
+    --action: oklch(0.541 0.281 293.009);
+    --action-foreground: oklch(0.97 0.02 293);
+    --radius-sm: calc(var(--radius) * 0.6);
+    --radius-md: calc(var(--radius) * 0.8);
+    --radius-lg: var(--radius);
+    --radius-xl: calc(var(--radius) * 1.4);
+  }
+
+  /* ── review chrome (sh-*): keep; extend product styles elsewhere ── */
+  * { box-sizing: border-box }
+  body {
+    margin: 0; padding: 0 0 40px;
+    background: var(--background, #f6f6f6); color: var(--foreground, #3a3a3a);
+    font-family: var(--font, system-ui, sans-serif);
+  }
+  .sh-bar {
+    position: sticky; top: 0; z-index: 999;
+    display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+    padding: 8px 12px; background: #191a1c; color: #d7d7d7;
+    font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  .sh-bar b, .sh-control-label { color: #8a8f98; font-weight: 500 }
+  .sh-control { display: inline-flex; gap: 5px; align-items: center }
+  .sh-bar button {
+    border: 1px solid #3a3d42; background: none; color: inherit;
+    font: inherit; padding: 2px 9px; border-radius: 99px; cursor: pointer;
+  }
+  .sh-bar select {
+    width: 170px; border: 1px solid #3a3d42; background: #232428; color: inherit;
+    font: inherit; padding: 3px 28px 3px 9px; border-radius: 7px; cursor: pointer;
+    color-scheme: dark;
+  }
+  #sh-screen { width: 190px }
+  .sh-bar button.on { background: #d7d7d7; color: #191a1c; border-color: #d7d7d7 }
+  .sh-spacer { flex: 1 }
+  .sh-stage { max-width: 960px; margin: 0 auto; padding: 12px 16px 0 }
+  [hidden] { display: none !important }
+
+  /* viewport presets */
+  .sh-vp-390 .sh-stage {
+    max-width: 390px; background: var(--background, #f6f6f6);
+    border: 10px solid #191a1c; border-radius: 28px;
+    padding: 16px 12px; height: min(844px, calc(100dvh - 52px));
+    overflow-y: auto; margin-top: 12px;
+  }
+  .sh-vp-768 .sh-stage {
+    max-width: 768px; border: 1px solid #c4c4c4; border-radius: 12px;
+    padding: 16px; margin-top: 12px;
+  }
+
+  /* placeholders */
+  .wf-pic  { border-radius: 4px; background:
+             repeating-linear-gradient(45deg, #e9e9e9, #e9e9e9 6px, #f2f2f2 6px, #f2f2f2 12px) }
+
+  /* ── product styles ── */
+  .stage { max-width: 960px; margin: 0 auto; }
+  .board-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    grid-template-rows: auto auto auto;
+    gap: 14px;
+    align-items: start;
+    margin-top: 8px;
+  }
+  .sh-vp-390 .board-grid, .sh-vp-768 .board-grid {
+    grid-template-columns: 1fr;
+  }
+  .sh-vp-390 .report-panel, .sh-vp-768 .report-panel { grid-column: 1; grid-row: auto; }
+
+  [data-component="Card"] {
+    background: var(--card); color: var(--card-foreground);
+    border: 1px solid var(--border); border-radius: var(--radius-lg);
+    padding: 14px;
+  }
+  .panel-title { font-size: 0.95rem; font-weight: 600; margin: 0 0 4px; }
+  .detail-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .detail-panel-head .panel-title { margin: 0; }
+  .panel-sub { font-size: 0.78rem; color: var(--muted-foreground); margin: 0 0 10px; }
+
+  /* calendar */
+  .calendar-panel { grid-column: 1; grid-row: 1; }
+  .cal-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); margin: 6px 0 1px; }
+  .cal-weekdays span { font-size: 0.68rem; color: var(--muted-foreground); text-align: center; }
+  .cal-row { position: relative; border-top: 1px solid var(--border); }
+  .cal-row:last-child { border-bottom: 1px solid var(--border); }
+  .cal-daynums { display: grid; grid-template-columns: repeat(7, 1fr); }
+  .cal-daynum {
+    font-size: 0.68rem; padding: 2px 0 1px; color: var(--foreground);
+    text-align: center;
+  }
+  .cal-daynum.muted { color: var(--muted-foreground); opacity: .55 }
+  .today-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 18px; height: 18px; border-radius: 999px;
+    background: var(--destructive); color: var(--primary-foreground);
+    padding: 0; font-weight: 700;
+  }
+  .cal-bars { position: relative; }
+  .cal-bar {
+    position: absolute; height: 17px; font-size: 0.68rem; line-height: 17px;
+    padding: 0 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    cursor: pointer; box-sizing: border-box;
+  }
+  .cal-bar.open { background: var(--info); color: var(--info-foreground);
+    border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+    border-right: 2px dashed color-mix(in oklch, var(--info-foreground) 55%, transparent);
+  }
+  .cal-bar.done { background: var(--primary); color: var(--primary-foreground); border-radius: var(--radius-sm); }
+  .cal-bar.held { background: var(--secondary); color: var(--secondary-foreground); border-radius: var(--radius-sm); border: 1px dashed var(--border); }
+  .cal-bar:hover { outline: 2px solid var(--ring); outline-offset: 1px; }
+  .cal-more {
+    position: absolute; left: 0; height: 15px; font-size: 0.66rem; line-height: 15px;
+    padding: 0 6px; border: none; background: none; color: var(--muted-foreground);
+    cursor: pointer; font-weight: 500;
+  }
+  .cal-more:hover { color: var(--foreground); text-decoration: underline; }
+  .cal-legend { display: flex; gap: 14px; margin-top: 6px; font-size: 0.68rem; color: var(--muted-foreground); flex-wrap: wrap; }
+  .cal-legend span { display: inline-flex; align-items: center; gap: 5px; }
+  .cal-legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+
+  /* kanban */
+  .kanban-panel { grid-column: 1; grid-row: 2; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .sh-vp-390 .kanban-panel { grid-template-columns: 1fr; }
+  [data-component="new:KanbanColumn"] { display: flex; flex-direction: column; gap: 8px; min-height: 140px; }
+  .kanban-col-body { display: flex; flex-direction: column; gap: 8px; max-height: 240px; overflow-y: auto; padding-right: 2px; }
+  .kanban-col-head { display: flex; align-items: center; justify-content: space-between; }
+  .kanban-col-head h3 { font-size: 0.85rem; margin: 0; display: flex; align-items: center; gap: 6px; }
+  .col-dot { width: 8px; height: 8px; border-radius: 999px; display: inline-block; }
+  .col-dot-neutral { background: var(--background); border: 1px solid var(--border); width: 7px; height: 7px; }
+  .kanban-count { font-size: 0.7rem; color: var(--muted-foreground); }
+  .add-task-btn {
+    font-size: 0.75rem; border: 1px dashed var(--border); background: none;
+    color: var(--muted-foreground); border-radius: var(--radius-md);
+    padding: 6px 8px; cursor: pointer; text-align: left; width: 100%;
+  }
+  .add-task-btn:hover { border-color: var(--ring); color: var(--foreground); }
+
+  .kanban-card {
+    display: flex; align-items: center; gap: 6px;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius-md); padding: 8px 9px; cursor: pointer;
+    font-size: 0.82rem;
+  }
+  .kanban-card.selected { border-color: var(--ring); box-shadow: 0 0 0 2px color-mix(in oklch, var(--ring) 35%, transparent); }
+  .card-type-icon { flex: none; font-size: 0.78rem; color: var(--muted-foreground); line-height: 1; }
+  .kanban-card .card-title { flex: 1; overflow-wrap: anywhere; }
+  .kanban-card .card-title.done { text-decoration: line-through; color: var(--muted-foreground); }
+  .card-move {
+    flex: none; width: 22px; height: 22px; border-radius: 999px;
+    border: 1px solid var(--border); background: var(--background);
+    color: var(--foreground); cursor: pointer; font: inherit; line-height: 1;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .card-move:hover { background: var(--muted); }
+
+  /* task detail / registration */
+  .detail-panel { grid-column: 1; grid-row: 3; min-height: 150px; }
+  .detail-empty { color: var(--muted-foreground); font-size: 0.85rem; }
+  .detail-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+  .detail-head-main { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .detail-head h4 { margin: 0; font-size: 0.95rem; }
+  .detail-body {
+    font-size: 0.83rem; color: var(--foreground); line-height: 1.55; white-space: pre-wrap;
+    overflow-wrap: anywhere; max-height: 160px; overflow-y: auto; padding-right: 2px;
+  }
+
+  [data-component="Badge"] {
+    display: inline-flex; align-items: center; font-size: 0.68rem; font-weight: 500;
+    padding: 2px 8px; border-radius: 999px; line-height: 1.4;
+  }
+  .badge-type { border: 1px solid var(--border); color: var(--foreground); }
+  .badge-sev-critical { background: color-mix(in oklch, var(--destructive) 16%, transparent); color: var(--destructive); }
+  .badge-sev-major { background: color-mix(in oklch, var(--warning) 16%, transparent); color: var(--warning); }
+  .badge-sev-minor { background: var(--muted); color: var(--muted-foreground); }
+
+  .field-row { margin-bottom: 10px; }
+  .field-row label { display: block; font-size: 0.75rem; color: var(--muted-foreground); margin-bottom: 4px; }
+  [data-component="Input"], [data-component="Textarea"], [data-component="Select"] {
+    width: 100%; font: inherit; font-size: 0.85rem; padding: 6px 9px;
+    border: 1px solid var(--input); border-radius: var(--radius-md);
+    background: var(--background); color: var(--foreground);
+  }
+  [data-component="Textarea"] { min-height: 64px; resize: vertical; }
+  .seg-toggle { display: inline-flex; border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden; }
+  .seg-toggle button {
+    font: inherit; font-size: 0.8rem; padding: 5px 12px; border: none; background: var(--background);
+    color: var(--foreground); cursor: pointer;
+  }
+  .seg-toggle button.active { background: var(--primary); color: var(--primary-foreground); }
+
+  [data-component="Button"] {
+    font: inherit; font-size: 0.82rem; font-weight: 500; padding: 7px 14px;
+    border-radius: var(--radius-md); border: 1px solid transparent; cursor: pointer;
+  }
+  .btn-primary { background: var(--action); color: var(--action-foreground); }
+  [data-component="Button"]:disabled { opacity: .5; cursor: not-allowed; }
+  .btn-ghost { background: none; border-color: var(--border); color: var(--foreground); }
+  .btn-destructive {
+    background: color-mix(in oklch, var(--destructive) 10%, transparent);
+    color: var(--destructive); border-color: transparent;
+  }
+  .btn-fixed { width: 84px; text-align: center; }
+  .form-actions { display: flex; gap: 8px; margin-top: 4px; }
+
+  /* weekly report (out of scope this spec — static placeholder) */
+  .report-panel { grid-column: 2; grid-row: 1 / span 3; }
+  .report-empty {
+    border: 1px dashed var(--border); border-radius: var(--radius-md);
+    padding: 18px 12px; color: var(--muted-foreground); font-size: 0.8rem;
+    text-align: center; margin-top: 8px;
+  }
+
+  /* ── responsive (kept last: must win over the unconditional rules above) ── */
+  @media (max-width: 820px) {
+    .board-grid { grid-template-columns: 1fr; }
+    .report-panel { grid-column: 1; grid-row: auto; }
+  }
+  @media (max-width: 560px) {
+    .kanban-panel { grid-template-columns: 1fr; }
+  }
+</style>
+
+<header class="sh-bar">
+  <b>proto</b>
+  <label class="sh-control"><span class="sh-control-label">screen</span><select id="sh-screen"></select></label>
+  <span class="sh-spacer"></span>
+  <label class="sh-control"><span class="sh-control-label">state</span><select id="sh-state"></select></label>
+  <button id="sh-vp">vp: full (m)</button>
+</header>
+
+<main class="sh-stage">
+  <section data-screen="board" data-title="일정 관리 보드" data-states="Empty">
+    <div class="board-grid">
+
+      <div class="calendar-panel" data-component="Card">
+        <p class="panel-title" id="cal-title">8월</p>
+        <div class="cal-weekdays">
+          <span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span>
+        </div>
+        <div id="cal-body"></div>
+        <div class="cal-legend">
+          <span><i style="background:var(--info)"></i>진행 중</span>
+          <span><i style="background:var(--primary)"></i>완료</span>
+          <span><i style="background:var(--secondary); border:1px solid var(--border)"></i>보류</span>
+        </div>
+      </div>
+
+      <div class="kanban-panel">
+        <div data-component="new:KanbanColumn">
+          <div class="kanban-col-head"><h3><i class="col-dot col-dot-neutral"></i>계획</h3><span class="kanban-count" id="count-plan"></span></div>
+          <div id="col-plan" class="kanban-col-body"></div>
+        </div>
+        <div data-component="new:KanbanColumn">
+          <div class="kanban-col-head"><h3><i class="col-dot" style="background:var(--info)"></i>실행</h3><span class="kanban-count" id="count-progress"></span></div>
+          <div id="col-progress" class="kanban-col-body"></div>
+        </div>
+        <div data-component="new:KanbanColumn">
+          <div class="kanban-col-head"><h3><i class="col-dot" style="background:var(--primary)"></i>완료</h3><span class="kanban-count" id="count-done"></span></div>
+          <div id="col-done" class="kanban-col-body"></div>
+        </div>
+      </div>
+
+      <div class="detail-panel" data-component="Card">
+        <div class="detail-panel-head">
+          <p class="panel-title">작업</p>
+          <button data-component="Button" class="btn-primary btn-fixed" id="btn-new-task" type="button">New</button>
+        </div>
+        <div id="detail-body"></div>
+      </div>
+
+      <div class="report-panel" data-component="Card">
+        <p class="panel-title">주간보고</p>
+        <div class="report-empty">이번 버전에는 포함되지 않았습니다.</div>
+      </div>
+
+    </div>
+  </section>
+</main>
+
+<script>
+  const stage = document.querySelector('.sh-stage');
+  const screens = [...stage.querySelectorAll('[data-screen]')];
+  const screenSelect = document.getElementById('sh-screen');
+  const stateSelect = document.getElementById('sh-state');
+  const vpBtn = document.getElementById('sh-vp');
+  let current = null;
+  let currentStates = [];
+
+  screens.forEach(s => {
+    const option = document.createElement('option');
+    option.textContent = s.dataset.title || s.dataset.screen;
+    option.value = s.dataset.screen;
+    screenSelect.append(option);
+  });
+  screenSelect.onchange = () => show(screenSelect.value);
+
+  function show(slug) {
+    current = screens.find(s => s.dataset.screen === slug) || screens[0];
+    screens.forEach(s => s.hidden = s !== current);
+    screenSelect.value = current.dataset.screen;
+    history.replaceState(null, '', '#' + current.dataset.screen);
+    buildStates();
+  }
+
+  function buildStates() {
+    const declared = (current.dataset.states || '').split(',').map(x => x.trim()).filter(Boolean);
+    currentStates = ['Default', ...declared.filter(name => name !== 'Default')];
+    stateSelect.innerHTML = '';
+    currentStates.forEach(name => {
+      const option = document.createElement('option');
+      option.textContent = name;
+      option.value = name;
+      stateSelect.append(option);
+    });
+    applyState('Default');
+  }
+
+  function applyState(name) {
+    const active = currentStates.includes(name) ? name : 'Default';
+    current.querySelectorAll('[data-when]').forEach(el => {
+      el.hidden = !el.dataset.when.split(',').map(x => x.trim()).includes(active);
+    });
+    stateSelect.value = active;
+  }
+  stateSelect.onchange = () => { applyState(stateSelect.value); onBoardStateChange(stateSelect.value); };
+
+  window.prototypeShell = {
+    showScreen: show,
+    setState: applyState,
+    getScreen: () => current?.dataset.screen,
+    getState: () => stateSelect.value
+  };
+
+  const VPS = ['full', '390', '768'];
+  let vp = VPS.find(v => document.body.classList.contains('sh-vp-' + v)) || 'full';
+  function applyVp() {
+    VPS.forEach(v => document.body.classList.toggle('sh-vp-' + v, v === vp && v !== 'full'));
+    vpBtn.textContent = 'vp: ' + vp + ' (m)';
+    vpBtn.classList.toggle('on', vp !== 'full');
+  }
+  vpBtn.onclick = () => { vp = VPS[(VPS.indexOf(vp) + 1) % VPS.length]; applyVp(); };
+  applyVp();
+
+  addEventListener('keydown', e => {
+    if (/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
+    const i = screens.indexOf(current);
+    if (e.key === 'ArrowRight' && !boardHandlesArrow(e)) show(screens[(i + 1) % screens.length].dataset.screen);
+    if (e.key === 'ArrowLeft' && !boardHandlesArrow(e)) show(screens[(i - 1 + screens.length) % screens.length].dataset.screen);
+    if (e.key === 'm') vpBtn.click();
+  });
+
+  addEventListener('hashchange', () => show(location.hash.slice(1)));
+  show(location.hash.slice(1));
+
+  /* ───────────────────────── product logic: 일정 관리 보드 ───────────────────────── */
+
+  const TODAY_STR = '2026-08-27';
+  const TODAY = new Date(TODAY_STR + 'T00:00:00');
+  const GRID_START = new Date('2026-07-26T00:00:00'); // Sunday on/before Aug 1, 2026
+  const DAY_MS = 86400000;
+
+  function toDate(s) { return new Date(s + 'T00:00:00'); }
+  function colIndex(d) { return Math.round((d - GRID_START) / DAY_MS); }
+
+  function seedTasks() {
+    return [
+      { id: 1, title: '로그인 API 리팩터링', type: '기능', severity: 'Critical', status: 'progress',
+        content: 'OAuth 콜백 처리와 토큰 갱신 로직을 분리하고, 만료 5분 전 자동 갱신을 붙인다. 리뷰에서 나온 에러 핸들링 통일 작업 포함.',
+        segments: [{ start: '2026-08-20', end: null }] },
+      { id: 2, title: '다크모드 토글 버그 수정', type: '이슈', severity: 'Major', status: 'done',
+        content: '설정 화면에서 다크모드를 켜도 사이드바 아이콘 색이 바뀌지 않는 문제. prefers-color-scheme와 로컬 토글 값이 충돌하는 게 원인.',
+        segments: [{ start: '2026-08-18', end: '2026-08-21', outcome: 'done' }] },
+      { id: 3, title: '주간보고 초안 작성', type: '기능', severity: 'Minor', status: 'progress',
+        content: '팀 콜랩 페이지 템플릿에 맞춰 섹션 구성. 지난 스프린트 회고에서 나온 포맷 반영.',
+        segments: [
+          { start: '2026-08-10', end: '2026-08-12', outcome: 'held' },
+          { start: '2026-08-24', end: null }
+        ] },
+      { id: 4, title: '온보딩 이메일 템플릿 다국어 지원 여부 검토', type: '기능', severity: 'Minor', status: 'plan',
+        content: '신규 가입자 온보딩 메일을 영어/일본어로도 보낼지, 번역은 누가 맡을지 아직 정하지 않음.',
+        segments: [] },
+      { id: 5, title: '결제 모듈 성능 이슈', type: '이슈', severity: 'Critical', status: 'plan',
+        content: '정기결제 배치 실행 시 DB 커넥션이 순간적으로 몰려 타임아웃 발생. 재현은 됐고, 원인 분석 중 다른 일정이 급해 보류함.',
+        segments: [{ start: '2026-08-05', end: '2026-08-07', outcome: 'held' }] },
+      { id: 7, title: 'API 문서 최신화', type: '기능', severity: 'Minor', status: 'plan',
+        content: '지난 스프린트에서 바뀐 엔드포인트 3개가 문서에 반영 안 됨.', segments: [] },
+      { id: 8, title: '테스트 커버리지 리포트 자동화', type: '기능', severity: 'Minor', status: 'plan',
+        content: 'CI에서 커버리지 리포트를 PR 코멘트로 자동으로 달아주기.', segments: [] },
+      { id: 9, title: '레거시 쿼리 인덱스 점검', type: '이슈', severity: 'Major', status: 'plan',
+        content: '통계 배치가 최근 느려짐. 인덱스가 안 타는 쿼리가 있는지 확인 필요.', segments: [] },
+      { id: 10, title: '고객 문의 태그 체계 정리', type: '기능', severity: 'Minor', status: 'plan',
+        content: '문의 유형이 뒤섞여 있어 통계를 내기 어려움. 태그 체계부터 다시 정의.', segments: [] },
+      { id: 6, title: '알림 센터 리디자인', type: '기능', severity: 'Major', status: 'progress',
+        content: '읽음/안읽음 구분과 카테고리 필터를 추가한 새 알림 센터 UI. 디자이너 시안 1차 반영.',
+        segments: [{ start: '2026-08-23', end: null }] }
+    ];
+  }
+
+  let tasks = seedTasks();
+  let nextId = 11;
+  let selectedId = null;
+  let registering = false;
+
+  function onBoardStateChange(name) {
+    tasks = name === 'Empty' ? [] : seedTasks();
+    nextId = 11;
+    selectedId = null;
+    registering = false;
+    renderAll();
+  }
+
+  function boardHandlesArrow(e) {
+    if (current?.dataset.screen !== 'board' || selectedId == null) return false;
+    const t = tasks.find(x => x.id === selectedId);
+    if (!t) return false;
+    if (e.key === 'ArrowLeft' && (t.status === 'progress' || t.status === 'done')) {
+      moveTask(t.id, t.status === 'progress' ? 'plan' : 'progress');
+      return true;
+    }
+    if (e.key === 'ArrowRight' && (t.status === 'plan' || t.status === 'progress')) {
+      moveTask(t.id, t.status === 'plan' ? 'progress' : 'done');
+      return true;
+    }
+    return false;
+  }
+
+  function moveTask(id, newStatus) {
+    const t = tasks.find(x => x.id === id);
+    if (!t) return;
+    const old = t.status;
+    if (old !== 'progress' && newStatus === 'progress') {
+      t.segments.push({ start: TODAY_STR, end: null });
+    } else if (old === 'progress' && newStatus !== 'progress') {
+      const seg = t.segments[t.segments.length - 1];
+      seg.end = TODAY_STR;
+      seg.outcome = newStatus === 'done' ? 'done' : 'held';
+    }
+    t.status = newStatus;
+    renderAll();
+  }
+
+  function selectTask(id) {
+    registering = false;
+    selectedId = (selectedId === id) ? null : id;
+    renderAll();
+  }
+
+  function severityBadge(sev) {
+    const cls = sev === 'Critical' ? 'badge-sev-critical' : sev === 'Major' ? 'badge-sev-major' : 'badge-sev-minor';
+    return `<span data-component="Badge" class="${cls}">${sev}</span>`;
+  }
+  function typeBadge(type) {
+    return `<span data-component="Badge" class="badge-type">${type}</span>`;
+  }
+
+  function renderColumns() {
+    const cols = { plan: document.getElementById('col-plan'), progress: document.getElementById('col-progress'), done: document.getElementById('col-done') };
+    Object.keys(cols).forEach(status => {
+      const list = tasks.filter(t => t.status === status);
+      document.getElementById('count-' + status).textContent = list.length ? `(${list.length})` : '';
+      cols[status].innerHTML = list.map(t => {
+        const sel = t.id === selectedId;
+        const showLeft = sel && (status === 'progress' || status === 'done');
+        const showRight = sel && (status === 'plan' || status === 'progress');
+        return `
+          <div class="kanban-card${sel ? ' selected' : ''}" data-id="${t.id}" style="border-left:3px solid ${severityLine(t.severity)}">
+            ${showLeft ? `<button class="card-move" data-dir="left" title="${status === 'progress' ? '계획으로 (보류)' : '실행으로 (재개)'}">‹</button>` : ''}
+            <span class="card-type-icon" title="${t.type}">${t.type === '이슈' ? '⚠' : '✦'}</span>
+            <span class="card-title${status === 'done' ? ' done' : ''}">${escapeHtml(t.title)}</span>
+            ${showRight ? `<button class="card-move" data-dir="right" title="${status === 'plan' ? '실행으로 (착수)' : '완료로'}">›</button>` : ''}
+          </div>`;
+      }).join('') || `<p class="detail-empty" style="margin:0">작업이 없습니다.</p>`;
+    });
+
+    stage.querySelectorAll('.kanban-card').forEach(card => {
+      card.addEventListener('click', e => {
+        if (e.target.closest('.card-move')) return;
+        selectTask(Number(card.dataset.id));
+      });
+    });
+    stage.querySelectorAll('.card-move').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        const card = btn.closest('.kanban-card');
+        const id = Number(card.dataset.id);
+        const t = tasks.find(x => x.id === id);
+        const dir = btn.dataset.dir;
+        if (dir === 'left') moveTask(id, t.status === 'progress' ? 'plan' : 'progress');
+        else moveTask(id, t.status === 'plan' ? 'progress' : 'done');
+      });
+    });
+  }
+
+  function severityLine(sev) {
+    return sev === 'Critical' ? 'var(--destructive)' : sev === 'Major' ? 'var(--warning)' : 'var(--border)';
+  }
+
+  function renderDetail() {
+    const el = document.getElementById('detail-body');
+    if (registering) {
+      el.innerHTML = `
+        <div class="field-row">
+          <label for="f-title">제목</label>
+          <input data-component="Input" id="f-title" type="text" placeholder="예: 결제 실패 로그 알림 연동">
+        </div>
+        <div class="field-row">
+          <label>이슈/기능</label>
+          <div class="seg-toggle" id="f-type">
+            <button type="button" data-val="기능" class="active">기능</button>
+            <button type="button" data-val="이슈">이슈</button>
+          </div>
+        </div>
+        <div class="field-row">
+          <label for="f-severity">심각도</label>
+          <select data-component="Select" id="f-severity">
+            <option value="Critical">Critical</option>
+            <option value="Major">Major</option>
+            <option value="Minor" selected>Minor</option>
+          </select>
+        </div>
+        <div class="field-row">
+          <label for="f-content">작업 상세 내용</label>
+          <textarea data-component="Textarea" id="f-content" placeholder="무엇을, 왜 하는지 적어주세요"></textarea>
+        </div>
+        <div class="form-actions">
+          <button data-component="Button" class="btn-primary" id="f-submit" disabled>등록</button>
+          <button data-component="Button" class="btn-ghost" id="f-cancel" type="button">취소</button>
+        </div>`;
+
+      const typeToggle = document.getElementById('f-type');
+      let typeVal = '기능';
+      typeToggle.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+        typeToggle.querySelectorAll('button').forEach(x => x.classList.remove('active'));
+        b.classList.add('active');
+        typeVal = b.dataset.val;
+      }));
+
+      const titleInput = document.getElementById('f-title');
+      const submitBtn = document.getElementById('f-submit');
+      titleInput.addEventListener('input', () => { submitBtn.disabled = !titleInput.value.trim(); });
+      document.getElementById('f-cancel').addEventListener('click', () => { registering = false; renderAll(); });
+      submitBtn.addEventListener('click', () => {
+        if (!titleInput.value.trim()) return;
+        const t = {
+          id: nextId++, title: titleInput.value.trim(), type: typeVal,
+          severity: document.getElementById('f-severity').value,
+          content: document.getElementById('f-content').value.trim() || '(상세 내용 없음)',
+          status: 'plan', segments: []
+        };
+        tasks.push(t);
+        registering = false;
+        selectedId = t.id;
+        renderAll();
+      });
+      titleInput.focus();
+      return;
+    }
+
+    const t = tasks.find(x => x.id === selectedId);
+    if (!t) {
+      el.innerHTML = `<p class="detail-empty">카드를 선택하면 상세 내용이 여기에 표시됩니다.</p>`;
+      return;
+    }
+    el.innerHTML = `
+      <div class="detail-head">
+        <div class="detail-head-main">
+          <h4 style="${t.status === 'done' ? 'text-decoration:line-through;color:var(--muted-foreground)' : ''}">${escapeHtml(t.title)}</h4>
+          ${typeBadge(t.type)}${severityBadge(t.severity)}
+        </div>
+        <button data-component="Button" class="btn-destructive btn-fixed" disabled title="다음 버전에서 제공됩니다">Delete</button>
+      </div>
+      <div class="detail-body">${escapeHtml(t.content)}</div>`;
+  }
+
+  const CAL_ROW_CAP = 2;
+  const expandedRows = new Set();
+
+  function renderCalendar() {
+    const body = document.getElementById('cal-body');
+    body.innerHTML = '';
+
+    // build 6 rows x 7 days
+    for (let row = 0; row < 6; row++) {
+      const rowStart = row * 7, rowEnd = row * 7 + 6;
+      const rowEl = document.createElement('div');
+      rowEl.className = 'cal-row';
+
+      const daynums = document.createElement('div');
+      daynums.className = 'cal-daynums';
+      for (let c = 0; c < 7; c++) {
+        const d = new Date(GRID_START.getTime() + (rowStart + c) * DAY_MS);
+        const isCurMonth = d.getMonth() === 7; // August = index 7
+        const isToday = d.getTime() === TODAY.getTime();
+        const cell = document.createElement('div');
+        cell.className = 'cal-daynum' + (isCurMonth ? '' : ' muted');
+        cell.innerHTML = isToday ? `<span class="today-badge">${d.getDate()}</span>` : d.getDate();
+        daynums.appendChild(cell);
+      }
+      rowEl.appendChild(daynums);
+
+      // gather segments overlapping this row
+      const rowSegs = [];
+      tasks.forEach(t => {
+        t.segments.forEach(seg => {
+          const startIdx = colIndex(toDate(seg.start));
+          const endIdx = colIndex(seg.end ? toDate(seg.end) : TODAY);
+          if (startIdx > rowEnd || endIdx < rowStart) return;
+          const clipStart = Math.max(startIdx, rowStart) - rowStart;
+          const clipEnd = Math.min(endIdx, rowEnd) - rowStart;
+          rowSegs.push({ taskId: t.id, title: t.title, colStart: clipStart, colEnd: clipEnd, outcome: seg.end ? seg.outcome : 'open' });
+        });
+      });
+      rowSegs.sort((a, b) => a.colStart - b.colStart);
+      const lanes = [];
+      rowSegs.forEach(seg => {
+        let lane = lanes.findIndex(endCol => endCol < seg.colStart);
+        if (lane === -1) { lane = lanes.length; lanes.push(seg.colEnd); }
+        else lanes[lane] = seg.colEnd;
+        seg.lane = lane;
+      });
+
+      const expanded = expandedRows.has(row);
+      const laneCount = lanes.length;
+      const cap = expanded ? laneCount : Math.min(laneCount, CAL_ROW_CAP);
+      const overflowCount = laneCount - cap;
+
+      const barsEl = document.createElement('div');
+      barsEl.className = 'cal-bars';
+      const barH = 15, barGap = 2, topPad = 1;
+      const showsToggle = overflowCount > 0 || (expanded && laneCount > CAL_ROW_CAP);
+      const visibleRows = cap + (showsToggle ? 1 : 0);
+      barsEl.style.height = (visibleRows ? visibleRows * (barH + barGap) + topPad : 5) + 'px';
+      rowSegs.forEach(seg => {
+        if (seg.lane >= cap) return;
+        const bar = document.createElement('div');
+        bar.className = 'cal-bar ' + seg.outcome;
+        bar.style.left = (seg.colStart / 7 * 100) + '%';
+        bar.style.width = ((seg.colEnd - seg.colStart + 1) / 7 * 100) + '%';
+        bar.style.top = (topPad + seg.lane * (barH + barGap)) + 'px';
+        const icon = seg.outcome === 'open' ? '▸ ' : seg.outcome === 'done' ? '✓ ' : '⏸ ';
+        bar.textContent = icon + seg.title;
+        bar.title = seg.title;
+        bar.addEventListener('click', () => selectTask(seg.taskId));
+        barsEl.appendChild(bar);
+      });
+      if (overflowCount > 0) {
+        const more = document.createElement('button');
+        more.className = 'cal-more';
+        more.type = 'button';
+        more.style.top = (topPad + cap * (barH + barGap)) + 'px';
+        more.textContent = `+${overflowCount}개`;
+        more.addEventListener('click', () => { expandedRows.add(row); renderCalendar(); });
+        barsEl.appendChild(more);
+      } else if (expanded && laneCount > CAL_ROW_CAP) {
+        const less = document.createElement('button');
+        less.className = 'cal-more';
+        less.type = 'button';
+        less.style.top = (topPad + cap * (barH + barGap)) + 'px';
+        less.textContent = '접기';
+        less.addEventListener('click', () => { expandedRows.delete(row); renderCalendar(); });
+        barsEl.appendChild(less);
+      }
+      rowEl.appendChild(barsEl);
+      body.appendChild(rowEl);
+    }
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  function renderAll() {
+    renderColumns();
+    renderDetail();
+    renderCalendar();
+  }
+
+  document.getElementById('btn-new-task').addEventListener('click', () => {
+    selectedId = null;
+    registering = true;
+    renderAll();
+  });
+
+  renderAll();
+</script>
